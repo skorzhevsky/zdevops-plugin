@@ -70,7 +70,8 @@ fun submitJobSync(
     listener: TaskListener,
     workspacePath: FilePath,
     buildUrl: String?,
-    linkBuilder: (String?, String, String) -> String
+    linkBuilder: (String?, String, String) -> String,
+    downloadExecutionLog: Boolean? = true
 ): String? {
     val submitJobRsp = submitJob(fileToSubmit, zosConnection, listener)
     listener.logger.println(Messages.zdevops_declarative_ZOSJobs_submitted_waiting())
@@ -83,25 +84,28 @@ fun submitJobSync(
     }
     listener.logger.println(Messages.zdevops_declarative_ZOSJobs_submitted_executed(finalResult.returnedCode))
 
-    listener.logger.println(Messages.zdevops_declarative_ZOSJobs_getting_log())
-    lateinit var spoolFiles: List<SpoolFile>
-    runMFTryCatchWrappedQuery(listener) {
-        spoolFiles = GetJobs(zosConnection).getSpoolFilesForJob(finalResult)
-    }
-    if (spoolFiles.isNotEmpty()) {
-        val fullLog = spoolFiles.joinToString { GetJobs(zosConnection).getSpoolContent(it) }
-        val logPath = "$workspacePath/${finalResult.jobName}.${finalResult.jobId}"
-        val file = File(logPath)
-        file.writeText(fullLog)
-        listener.logger.println(Messages.zdevops_declarative_ZOSJobs_got_log(
-            HyperlinkNote.encodeTo(
-                linkBuilder(buildUrl, finalResult.jobName, finalResult.jobId),
-                "${finalResult.jobName}.${finalResult.jobId}"
+    if (downloadExecutionLog == true) {
+        listener.logger.println(Messages.zdevops_declarative_ZOSJobs_getting_log())
+        lateinit var spoolFiles: List<SpoolFile>
+        runMFTryCatchWrappedQuery(listener) {
+            spoolFiles = GetJobs(zosConnection).getSpoolFilesForJob(finalResult)
+        }
+        if (spoolFiles.isNotEmpty()) {
+            val fullLog = spoolFiles.joinToString { GetJobs(zosConnection).getSpoolContent(it) }
+            val logPath = "$workspacePath/${finalResult.jobName}.${finalResult.jobId}"
+            val file = File(logPath)
+            file.writeText(fullLog)
+            listener.logger.println(
+                Messages.zdevops_declarative_ZOSJobs_got_log(
+                    HyperlinkNote.encodeTo(
+                        linkBuilder(buildUrl, finalResult.jobName, finalResult.jobId),
+                        "${finalResult.jobName}.${finalResult.jobId}"
+                    )
+                )
             )
-        ))
-    } else {
-        listener.logger.println(Messages.zdevops_no_spool_files(submitJobRsp.jobid))
+        } else {
+            listener.logger.println(Messages.zdevops_no_spool_files(submitJobRsp.jobid))
+        }
     }
-
     return finalResult?.returnedCode
 }

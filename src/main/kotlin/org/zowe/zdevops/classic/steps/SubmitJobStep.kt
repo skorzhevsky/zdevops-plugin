@@ -29,6 +29,7 @@ constructor(
   val jobName: String,
   val sync: Boolean,
   val checkRC: Boolean,
+  val downloadExecutionLog: Boolean = true,
 ) : AbstractBuildStep(connectionName) {
   override fun perform(
       build: AbstractBuild<*, *>,
@@ -41,7 +42,7 @@ constructor(
       val linkBuilder: (String?, String, String) -> String = { jobUrl, jobName, jobId ->
         "${jobUrl}ws/${jobName}.${jobId}/*view*/"
       }
-      val jobResult = submitJobSync(jobName, zosConnection, listener, workspace, build.getEnvironment(listener)["JOB_URL"], linkBuilder)
+      val jobResult = submitJobSync(jobName, zosConnection, listener, workspace, build.getEnvironment(listener)["JOB_URL"], linkBuilder, downloadExecutionLog)
       if (checkRC && !jobResult.equals("CC 0000")) {
         throw AbortException("Job RC code is not 0000")
       }

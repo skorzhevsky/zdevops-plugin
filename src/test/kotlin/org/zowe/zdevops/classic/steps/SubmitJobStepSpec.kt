@@ -245,5 +245,80 @@ class SubmitJobStepSpec : ShouldSpec({
           assertSoftly { isJobFailLogged shouldBe true }
         }
     }
+    should("perform SubmitJobStep operation without downloading spool files") {
+      var isJobSubmitting = false
+      var isJobSubmitted = false
+      var isWaitingJobFinish = false
+      var isJobFinished = false
+      var isDownloadingExecutionLog = false
+      var isNoSpoolLogs = false
+
+      val taskListener = object : TestBuildListener() {
+        override fun getLogger(): PrintStream {
+          val logger = mockk<PrintStream>()
+          every {
+            logger.println(any<String>())
+          } answers {
+            if (firstArg<String>().contains("Submitting a JOB")) {
+              isJobSubmitting = true
+            } else if (firstArg<String>().contains("JOB submitted successfully")) {
+              isJobSubmitted = true
+            } else if (firstArg<String>().contains("Waiting for a JOB finish")) {
+              isWaitingJobFinish = true
+            } else if (firstArg<String>().contains("JOB was finished. Returned code")) {
+              isJobFinished = true
+            } else if (firstArg<String>().contains("Downloading execution log")) {
+              isDownloadingExecutionLog = true
+            } else if (firstArg<String>().contains("There are no logs for")) {
+              isNoSpoolLogs = true
+            } else {
+              fail("Unexpected logger message: ${firstArg<String>()}")
+            }
+          }
+          return logger
+        }
+      }
+      val launcher = TestLauncher(taskListener, virtualChannel)
+
+      responseDispatcher.injectEndpoint(
+        "${this.testCase.name.testName}_submitJob",
+        { it?.requestLine?.matches(Regex("PUT /zosmf/restjobs/jobs HTTP/.*")) == true },
+        { MockResponse().setBody(responseDispatcher.readMockJson("submitJobResponse") ?: "") }
+      )
+      val getJobsRegex = Regex("GET /zosmf/restjobs/jobs/(?!.*files).* HTTP/.*")
+      responseDispatcher.injectEndpoint(
+        "${this.testCase.name.testName}_getJob",
+        { it?.requestLine?.matches(getJobsRegex) == true },
+        { MockResponse().setBody(responseDispatcher.readMockJson("getJobResponse") ?: "") }
+      )
+      responseDispatcher.injectEndpoint(
+        "${this.testCase.name.testName}_getJobSpoolFiles",
+        { it?.requestLine?.matches(Regex("GET /zosmf/restjobs/jobs/.*/files HTTP/.*")) == true },
+        { MockResponse().setBody(responseDispatcher.readMockJson("getJobSpoolFilesResponse") ?: "") }
+      )
+
+      val submitJobStepInst = spyk(
+        SubmitJobStep(
+          "test",
+          "test",
+          sync = true,
+          checkRC = true,
+          downloadExecutionLog = false,
+        )
+      )
+      submitJobStepInst.perform(
+        build,
+        launcher,
+        taskListener,
+        zosConnection
+      )
+
+      assertSoftly { isJobSubmitting shouldBe true }
+      assertSoftly { isJobSubmitted shouldBe true }
+      assertSoftly { isWaitingJobFinish shouldBe true }
+      assertSoftly { isJobFinished shouldBe true }
+      assertSoftly { isDownloadingExecutionLog shouldBe false }
+      assertSoftly { isNoSpoolLogs shouldBe false }
+    }
   }
 })

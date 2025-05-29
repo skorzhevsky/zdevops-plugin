@@ -30,6 +30,7 @@ stage ("stage-name") {
         zosmf("z/os-connection-name") {
             submitJob "//'EXAMPLE.DATASET(MEMBER)'"
             submitJobSync "//'EXAMPLE.DATASET(MEMBER)'"
+            submitJobSync fileToSubmit:"//'EXAMPLE.DATASET(MEMBER)'", downloadExecutionLog:"False"
             downloadDS "EXAMPLE.DATASET(MEMBER)"
             downloadDS dsn:"EXAMPLE.DATASET(MEMBER)", vol:"VOL001"
             allocateDS dsn:"EXAMPLE.DATASET", alcUnit:"TRK", dsOrg:"PS", primary:1, secondary:1, recFm:"FB", failOnExist:"False"
